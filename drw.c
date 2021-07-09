@@ -378,6 +378,29 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	return x + (render ? w : 0);
 }
 
+static unsigned char 
+blend(unsigned char a, unsigned char x, unsigned char y) { return ((255-a)*x + a*y) / 255; }
+
+void
+drw_img(Drw *drw, int x, int y, XImage *img, unsigned char *tmp) 
+{
+	if (!drw || !drw->scheme)
+		return;
+	int icsz = img->width * img->height, bt = drw->scheme[ColBg].pixel, i;
+	unsigned char *data = (unsigned char *)img->data;
+	unsigned char r = (bt & 0x000000ff), g = (bt & 0x0000ff00)>>8, b = (bt & 0x00ff0000)>>16;
+	memcpy(tmp, data, icsz << 2);
+	for (i = 0; i < icsz; ++i) {
+		unsigned char a = data[(i<<2)|3];
+		data[(i<<2)  ] = blend(a, r, data[(i<<2)  ]);
+		data[(i<<2)|1] = blend(a, g, data[(i<<2)|1]);
+		data[(i<<2)|2] = blend(a, b, data[(i<<2)|2]);
+	}
+	XPutImage(drw->dpy, drw->drawable, drw->gc, img, 0, 0, x, y, img->width, img->height);
+
+	memcpy(data, tmp, icsz << 2);
+}
+
 void
 drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)
 {
