@@ -1309,17 +1309,16 @@ propertynotify(XEvent *e)
 			drawbars();
 			break;
 		}
-		int ub = 0, rdb = c == c->mon->sel;
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
 			updatetitle(c);
-			ub = rdb;
+			if (c == c->mon->sel)
+				drawbar(c->mon);
 		}
-		if (ev->atom == netatom[NetWMIcon]) {
+		else if (ev->atom == netatom[NetWMIcon]) {
 			updateicon(c);
-			ub = rdb;
+			if (c == c->mon->sel)
+				drawbar(c->mon);
 		}
-
-		if (ub) drawbar(c->mon);
 
 		if (ev->atom == netatom[NetWMWindowType])
 			updatewindowtype(c);
