@@ -392,7 +392,6 @@ drw_img(Drw *drw, int x, int y, XImage *img, unsigned char *tmp)
 {
 	if (!drw || !drw->scheme)
 		return;
-	// alpha blend
 	int icsz = img->width * img->height, i;
 	uint32_t bt = drw->scheme[ColBg].pixel, *data = (uint32_t *)img->data;
 	memcpy(tmp, data, icsz << 2);
