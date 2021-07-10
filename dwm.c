@@ -1319,7 +1319,6 @@ propertynotify(XEvent *e)
 			if (c == c->mon->sel)
 				drawbar(c->mon);
 		}
-
 		if (ev->atom == netatom[NetWMWindowType])
 			updatewindowtype(c);
 	}
