@@ -738,7 +738,7 @@ drawbar(Monitor *m)
 		if (m->sel) {
 			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
 			drw_text(drw, x, 0, w, bh, lrpad / 2 + (m->sel->icon ? m->sel->icon->width + ICONSPACING : 0), m->sel->name, 0);
-			static unsigned char tmp[ICONSIZE * ICONSIZE << 2];
+			static uint32_t tmp[ICONSIZE * ICONSIZE];
 			if (m->sel->icon) drw_img(drw, x + lrpad / 2, (bh - m->sel->icon->height) / 2, m->sel->icon, tmp);
 			if (m->sel->isfloating)
 				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
@@ -952,12 +952,10 @@ geticonprop(Window win)
 	if (w <= h) {
 		ich = ICONSIZE; icw = w * ICONSIZE / h;
 		if (icw < 1) icw = 1;
-		else if (icw > ICONSIZE) icw = ICONSIZE;
 	}
 	else {
 		icw = ICONSIZE; ich = h * ICONSIZE / w;
 		if (ich < 1) ich = 1;
-		else if (ich > ICONSIZE) ich = ICONSIZE;
 	}
 
 	unsigned char *icbuf = malloc(icw * ich << 2); if(!icbuf) { XFree(p); return NULL; }

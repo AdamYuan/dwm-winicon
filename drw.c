@@ -388,16 +388,16 @@ static uint32_t blend32(uint32_t p1, uint32_t p2) {
 }
 
 void
-drw_img(Drw *drw, int x, int y, XImage *img, unsigned char *tmp) 
+drw_img(Drw *drw, int x, int y, XImage *img, uint32_t *tmp) 
 {
 	if (!drw || !drw->scheme)
 		return;
+	uint32_t *data = (uint32_t *)img->data, bt = drw->scheme[ColBg].pixel;
 	int icsz = img->width * img->height, i;
-	uint32_t bt = drw->scheme[ColBg].pixel, *data = (uint32_t *)img->data;
-	memcpy(tmp, data, icsz << 2);
-	for (i = 0; i < icsz; ++i) data[i] = blend32(bt, data[i]);
+	for (i = 0; i < icsz; ++i) tmp[i] = blend32(bt, data[i]);
+	img->data = (char *)tmp;
 	XPutImage(drw->dpy, drw->drawable, drw->gc, img, 0, 0, x, y, img->width, img->height);
-	memcpy(data, tmp, icsz << 2);
+	img->data = (char *)data;
 }
 
 void
