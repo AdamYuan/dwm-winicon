@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <X11/Xlib.h>
 #include <X11/Xft/Xft.h>
 
@@ -378,26 +379,25 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	return x + (render ? w : 0);
 }
 
-static unsigned char 
-blend(unsigned char a, unsigned char x, unsigned char y) { return ((255-a)*x + a*y) / 255; }
+static uint32_t blend32(uint32_t p1, uint32_t p2) {
+    uint32_t a = p2 >> 24;
+    uint32_t na = 255 - a;
+    uint32_t rb = ((na * (p1 & 0x00ff00ffu)) + (a * (p2 & 0x00ff00ffu))) >> 8;
+    uint32_t ag = (na * ((p1 & 0xff00ff00u) >> 8)) + (a * (0x01000000u | ((p2 & 0x0000ff00u) >> 8)));
+    return ((rb & 0x00ff00ffu) | (ag & 0xff00ff00u));
+}
 
 void
 drw_img(Drw *drw, int x, int y, XImage *img, unsigned char *tmp) 
 {
 	if (!drw || !drw->scheme)
 		return;
-	int icsz = img->width * img->height, bt = drw->scheme[ColBg].pixel, i;
-	unsigned char *data = (unsigned char *)img->data;
-	unsigned char r = (bt & 0x000000ff), g = (bt & 0x0000ff00)>>8, b = (bt & 0x00ff0000)>>16;
+	// alpha blend
+	int icsz = img->width * img->height, i;
+	uint32_t bt = drw->scheme[ColBg].pixel, *data = (uint32_t *)img->data;
 	memcpy(tmp, data, icsz << 2);
-	for (i = 0; i < icsz; ++i) {
-		unsigned char a = data[(i<<2)|3];
-		data[(i<<2)  ] = blend(a, r, data[(i<<2)  ]);
-		data[(i<<2)|1] = blend(a, g, data[(i<<2)|1]);
-		data[(i<<2)|2] = blend(a, b, data[(i<<2)|2]);
-	}
+	for (i = 0; i < icsz; ++i) data[i] = blend32(bt, data[i]);
 	XPutImage(drw->dpy, drw->drawable, drw->gc, img, 0, 0, x, y, img->width, img->height);
-
 	memcpy(data, tmp, icsz << 2);
 }
 
