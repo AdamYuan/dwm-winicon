@@ -968,12 +968,12 @@ geticonprop(Window win)
 		imlib_context_set_image(origin);
 		imlib_image_set_has_alpha(1);
 		Imlib_Image scaled = imlib_create_cropped_scaled_image(0, 0, w, h, icw, ich);
-		imlib_free_image();
+		imlib_free_image_and_decache();
 		if (!scaled) { XFree(p); return NULL; }
 		imlib_context_set_image(scaled);
 		imlib_image_set_has_alpha(1);
 		memcpy(icbuf, imlib_image_get_data_for_reading_only(), icw * ich << 2);
-		imlib_free_image();
+		imlib_free_image_and_decache();
 	}
 	XFree(p);
 
