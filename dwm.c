@@ -42,6 +42,7 @@
 #include <X11/extensions/Xinerama.h>
 #endif /* XINERAMA */
 #include <X11/Xft/Xft.h>
+#include <Imlib2.h>
 
 #include "drw.h"
 #include "util.h"
@@ -907,10 +908,6 @@ getstate(Window w)
 	return result;
 }
 
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#define STBIR_DEFAULT_FILTER_DOWNSAMPLE STBIR_FILTER_BOX
-#include "stb_image_resize.h"
-
 XImage *
 geticonprop(Window win)
 {
@@ -965,7 +962,19 @@ geticonprop(Window win)
 	for (i = 0; i < sz; ++i) bstp32[i] = bstp[i];
 #endif
 	if (w == icw && h == ich) memcpy(icbuf, bstp, icw * ich << 2);
-	else stbir_resize_uint8((unsigned char *)bstp, w, h, 0, icbuf, icw, ich, 0, 4);
+	else {
+		Imlib_Image origin = imlib_create_image_using_data(w, h, (DATA32 *)bstp);
+		if (!origin) { XFree(p); return NULL; }
+		imlib_context_set_image(origin);
+		imlib_image_set_has_alpha(1);
+		Imlib_Image scaled = imlib_create_cropped_scaled_image(0, 0, w, h, icw, ich);
+		imlib_free_image();
+		if (!scaled) { XFree(p); return NULL; }
+		imlib_context_set_image(scaled);
+		imlib_image_set_has_alpha(1);
+		memcpy(icbuf, imlib_image_get_data_for_reading_only(), icw * ich << 2);
+		imlib_free_image();
+	}
 	XFree(p);
 
 	return XCreateImage(dpy, DefaultVisual(dpy, screen), DefaultDepth(dpy, screen), ZPixmap, 0, (char *)icbuf, icw, ich, 32, 0);
