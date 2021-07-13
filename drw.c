@@ -379,12 +379,11 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	return x + (render ? w : 0);
 }
 
-static uint32_t blend32(uint32_t p1, uint32_t p2) {
-    uint32_t a = p2 >> 24;
-    uint32_t na = 255 - a;
-    uint32_t rb = ((na * (p1 & 0x00ff00ffu)) + (a * (p2 & 0x00ff00ffu))) >> 8;
-    uint32_t ag = (na * ((p1 & 0xff00ff00u) >> 8)) + (a * (0x01000000u | ((p2 & 0x0000ff00u) >> 8)));
-    return ((rb & 0x00ff00ffu) | (ag & 0xff00ff00u));
+static uint32_t blend(uint32_t p1rb, uint32_t p1g, uint32_t p2) {
+	uint8_t a = p2 >> 24u;
+	uint32_t rb = (p2 & 0xFF00FFu) + ( (a * p1rb) >> 8u );
+	uint32_t g = (p2 & 0x00FF00u) + ( (a * p1g) >> 8u );
+	return (rb & 0xFF00FFu) | (g & 0x00FF00u);
 }
 
 void
@@ -392,12 +391,12 @@ drw_img(Drw *drw, int x, int y, XImage *img, uint32_t *tmp)
 {
 	if (!drw || !drw->scheme)
 		return;
-	uint32_t *data = (uint32_t *)img->data, bt = drw->scheme[ColBg].pixel;
+	uint32_t *data = (uint32_t *)img->data, p = drw->scheme[ColBg].pixel, prb = p & 0xFF00FFu, pg = p & 0x00FF00u;
 	int icsz = img->width * img->height, i;
-	for (i = 0; i < icsz; ++i) tmp[i] = blend32(bt, data[i]);
-	img->data = (char *)tmp;
+	for (i = 0; i < icsz; ++i) tmp[i] = blend(prb, pg, data[i]);
+	img->data = (char *) tmp;
 	XPutImage(drw->dpy, drw->drawable, drw->gc, img, 0, 0, x, y, img->width, img->height);
-	img->data = (char *)data;
+	img->data = (char *) data;
 }
 
 void

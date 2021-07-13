@@ -908,6 +908,13 @@ getstate(Window w)
 	return result;
 }
 
+static uint32_t prealpha(uint32_t p) {
+	uint8_t a = p >> 24u;
+	uint32_t rb = (a * (p & 0xFF00FFu)) >> 8u;
+	uint32_t g = (a * (p & 0x00FF00u)) >> 8u;
+	return (rb & 0xFF00FFu) | (g & 0x00FF00u) | ((~a) << 24u);
+}
+
 XImage *
 geticonprop(Window win)
 {
@@ -945,7 +952,7 @@ geticonprop(Window win)
 
 	w = *(bstp - 2); h = *(bstp - 1);
 
-	int icw, ich;
+	int icw, ich, icsz;
 	if (w <= h) {
 		ich = ICONSIZE; icw = w * ICONSIZE / h;
 		if (icw < 1) icw = 1;
@@ -954,29 +961,31 @@ geticonprop(Window win)
 		icw = ICONSIZE; ich = h * ICONSIZE / w;
 		if (ich < 1) ich = 1;
 	}
+	icsz = icw * ich;
 
-	unsigned char *icbuf = malloc(icw * ich << 2); if(!icbuf) { XFree(p); return NULL; }
+	int i;
 #if ULONG_MAX > UINT32_MAX
-	int i, sz = w * h;
+	int sz = w * h;
 	uint32_t *bstp32 = (uint32_t *)bstp;
 	for (i = 0; i < sz; ++i) bstp32[i] = bstp[i];
 #endif
-	if (w == icw && h == ich) memcpy(icbuf, bstp, icw * ich << 2);
+	uint32_t *icbuf = malloc(icsz << 2); if(!icbuf) { XFree(p); return NULL; }
+	if (w == icw && h == ich) memcpy(icbuf, bstp, icsz << 2);
 	else {
 		Imlib_Image origin = imlib_create_image_using_data(w, h, (DATA32 *)bstp);
-		if (!origin) { XFree(p); return NULL; }
+		if (!origin) { XFree(p); free(icbuf); return NULL; }
 		imlib_context_set_image(origin);
 		imlib_image_set_has_alpha(1);
 		Imlib_Image scaled = imlib_create_cropped_scaled_image(0, 0, w, h, icw, ich);
 		imlib_free_image_and_decache();
-		if (!scaled) { XFree(p); return NULL; }
+		if (!scaled) { XFree(p); free(icbuf); return NULL; }
 		imlib_context_set_image(scaled);
 		imlib_image_set_has_alpha(1);
-		memcpy(icbuf, imlib_image_get_data_for_reading_only(), icw * ich << 2);
+		memcpy(icbuf, imlib_image_get_data_for_reading_only(), icsz << 2);
 		imlib_free_image_and_decache();
 	}
 	XFree(p);
-
+	for (i = 0; i < icsz; ++i) icbuf[i] = prealpha(icbuf[i]);
 	return XCreateImage(dpy, DefaultVisual(dpy, screen), DefaultDepth(dpy, screen), ZPixmap, 0, (char *)icbuf, icw, ich, 32, 0);
 }
 
