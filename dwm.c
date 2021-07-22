@@ -935,16 +935,14 @@ geticonprop(Window win)
 		unsigned long *i;
 		int bstd = INT_MAX, d, m;
 		for (i = p; i + 1 < end; ) {
-			w = *i++; h = *i++;
+			if ((w = *i++) > MAXICONAXIS || (h = *i++) > MAXICONAXIS) break;
 			m = w > h ? w : h; sz = w * h;
-			if (w > MAXICONAXIS || h > MAXICONAXIS) break;
 			if ((i += sz) <= end && m >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i - sz; }
 		}
 		if (!bstp) {
 			for (i = p; i + 1 < end; ) {
-				w = *i++; h = *i++;
+				if ((w = *i++) > MAXICONAXIS || (h = *i++) > MAXICONAXIS) break;
 				m = w > h ? w : h; sz = w * h;
-				if (w > MAXICONAXIS || h > MAXICONAXIS) break;
 				if ((i += sz) <= end && (d = ICONSIZE - m) < bstd) { bstd = d; bstp = i - sz; }
 			}
 		}
