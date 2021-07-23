@@ -934,13 +934,13 @@ geticonprop(Window win)
 		const unsigned long *end = p + n;
 		unsigned long *i;
 		uint32_t bstd = UINT32_MAX, d, m;
-		for (i = p; i + 1 < end; i += sz) {
+		for (i = p; i < end - 1; i += sz) {
 			if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 			if ((sz = w * h) > end - i) break;
 			if ((m = w > h ? w : h) >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i; }
 		}
 		if (!bstp) {
-			for (i = p; i + 1 < end; i += sz) {
+			for (i = p; i < end - 1; i += sz) {
 				if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 				if ((sz = w * h) > end - i) break;
 				if ((d = ICONSIZE - (w > h ? w : h)) < bstd) { bstd = d; bstp = i; }
