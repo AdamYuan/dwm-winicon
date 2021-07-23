@@ -915,7 +915,6 @@ static uint32_t prealpha(uint32_t p) {
 	return (rb & 0xFF00FFu) | (g & 0x00FF00u) | ((~a) << 24u);
 }
 
-#define MAXICONAXIS 0xffffu
 XImage *
 geticonprop(Window win)
 {
@@ -928,20 +927,21 @@ geticonprop(Window win)
 		return NULL; 
 	if (n == 0 || format != 32) { XFree(p); return NULL; }
 
-	unsigned long *bstp = NULL, w, h, sz;
+	unsigned long *bstp = NULL;
+	uint32_t w, h, sz;
 
 	{
 		const unsigned long *end = p + n;
 		unsigned long *i;
-		int bstd = INT_MAX, d, m;
+		uint32_t bstd = UINT32_MAX, d, m;
 		for (i = p; i + 1 < end; ) {
-			if ((w = *i++) > MAXICONAXIS || (h = *i++) > MAXICONAXIS) break;
+			if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 			m = w > h ? w : h; sz = w * h;
 			if ((i += sz) <= end && m >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i - sz; }
 		}
 		if (!bstp) {
 			for (i = p; i + 1 < end; ) {
-				if ((w = *i++) > MAXICONAXIS || (h = *i++) > MAXICONAXIS) break;
+				if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 				m = w > h ? w : h; sz = w * h;
 				if ((i += sz) <= end && (d = ICONSIZE - m) < bstd) { bstd = d; bstp = i - sz; }
 			}
@@ -949,20 +949,20 @@ geticonprop(Window win)
 		if (!bstp) { XFree(p); return NULL; }
 	}
 
-	w = *(bstp - 2); h = *(bstp - 1);
+	if ((w = *(bstp - 2)) == 0 || (h = *(bstp - 1)) == 0) { XFree(p); return NULL; }
 
-	int icw, ich, icsz;
+	uint32_t icw, ich, icsz;
 	if (w <= h) {
 		ich = ICONSIZE; icw = w * ICONSIZE / h;
-		if (icw < 1) icw = 1;
+		if (icw == 0) icw = 1;
 	}
 	else {
 		icw = ICONSIZE; ich = h * ICONSIZE / w;
-		if (ich < 1) ich = 1;
+		if (ich == 0) ich = 1;
 	}
 	icsz = icw * ich;
 
-	int i;
+	uint32_t i;
 #if ULONG_MAX > UINT32_MAX
 	uint32_t *bstp32 = (uint32_t *)bstp;
 	for (sz = w * h, i = 0; i < sz; ++i) bstp32[i] = bstp[i];
