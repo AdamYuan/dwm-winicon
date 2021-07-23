@@ -936,14 +936,14 @@ geticonprop(Window win)
 		uint32_t bstd = UINT32_MAX, d, m;
 		for (i = p; i + 1 < end; i += sz) {
 			if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
-			m = w > h ? w : h; sz = w * h;
-			if (sz <= end - i && m >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i; }
+			if ((sz = w * h) > end - i) break;
+			if ((m = w > h ? w : h) >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i; }
 		}
 		if (!bstp) {
 			for (i = p; i + 1 < end; i += sz) {
 				if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
-				m = w > h ? w : h; sz = w * h;
-				if (sz <= end - i && (d = ICONSIZE - m) < bstd) { bstd = d; bstp = i; }
+				if ((sz = w * h) > end - i) break;
+				if ((d = ICONSIZE - (w > h ? w : h)) < bstd) { bstd = d; bstp = i; }
 			}
 		}
 		if (!bstp) { XFree(p); return NULL; }
