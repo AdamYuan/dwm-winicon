@@ -17,11 +17,11 @@ The patch depends on Imlib2 for icon scaling, which can be easily installed in m
 
 Arch Linux:
 ```sh
-	sudo pacman -S imlib2
+sudo pacman -S imlib2
 ```
 Debian:
 ```sh
-	sudo apt install libimlib2-dev
+sudo apt install libimlib2-dev
 ```
 
 Configuration
