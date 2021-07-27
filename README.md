@@ -16,9 +16,13 @@ Dependency
 The patch depends on Imlib2 for icon scaling, which can be easily installed in most distros.
 
 Arch Linux:
+```sh
 	sudo pacman -S imlib2
+```
 Debian:
+```sh
 	sudo apt install libimlib2-dev
+```
 
 Configuration
 -------------
