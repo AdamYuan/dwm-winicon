@@ -96,7 +96,7 @@ struct Client {
 	int bw, oldbw;
 	unsigned int tags;
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
-	unsigned int icw, ich; Picture icon;
+	XImage *icon;
 	Client *next;
 	Client *snext;
 	Monitor *mon;
@@ -175,7 +175,7 @@ static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
-static Picture geticonprop(Window w, unsigned int *icw, unsigned int *ich);
+static XImage *geticonprop(Window win);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
@@ -239,7 +239,6 @@ static Monitor *wintomon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
-static void xinitvisual();
 static void zoom(const Arg *arg);
 
 /* variables */
@@ -273,9 +272,6 @@ static Cur *cursor[CurLast];
 static Clr **scheme;
 static Display *dpy;
 static Drw *drw;
-static Visual *visual;
-static int depth;
-static Colormap cmap;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 
@@ -740,12 +736,13 @@ drawbar(Monitor *m)
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 
 	if ((w = m->ww - sw - x) > bh) {
-		if ((c = m->sel)) {
+		if (m->sel) {
 			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
-			drw_text(drw, x, 0, w, bh, lrpad / 2 + (c->icon ? c->icw + ICONSPACING : 0), c->name, 0);
-			if (c->icon) drw_pic(drw, x + lrpad / 2, (bh - c->ich) / 2, c->icw, c->ich, c->icon);
-			if (c->isfloating)
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, c->isfixed, 0);
+			drw_text(drw, x, 0, w, bh, lrpad / 2 + (m->sel->icon ? m->sel->icon->width + ICONSPACING : 0), m->sel->name, 0);
+			static uint32_t tmp[ICONSIZE * ICONSIZE];
+			if (m->sel->icon) drw_img(drw, x + lrpad / 2, (bh - m->sel->icon->height) / 2, m->sel->icon, tmp);
+			if (m->sel->isfloating)
+				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
 		} else {
 			drw_setscheme(drw, scheme[SchemeNorm]);
 			drw_rect(drw, x, 0, w, bh, 1, 1);
@@ -915,11 +912,11 @@ static uint32_t prealpha(uint32_t p) {
 	uint8_t a = p >> 24u;
 	uint32_t rb = (a * (p & 0xFF00FFu)) >> 8u;
 	uint32_t g = (a * (p & 0x00FF00u)) >> 8u;
-	return (rb & 0xFF00FFu) | (g & 0x00FF00u) | (a << 24u);
+	return (rb & 0xFF00FFu) | (g & 0x00FF00u) | ((~a) << 24u);
 }
 
-Picture
-geticonprop(Window win, unsigned int *picw, unsigned int *pich)
+XImage *
+geticonprop(Window win)
 {
 	int format;
 	unsigned long n, extra, *p = NULL;
@@ -927,33 +924,34 @@ geticonprop(Window win, unsigned int *picw, unsigned int *pich)
 
 	if (XGetWindowProperty(dpy, win, netatom[NetWMIcon], 0L, LONG_MAX, False, AnyPropertyType, 
 						   &real, &format, &n, &extra, (unsigned char **)&p) != Success)
-		return None; 
-	if (n == 0 || format != 32) { XFree(p); return None; }
+		return NULL; 
+	if (n == 0 || format != 32) { XFree(p); return NULL; }
 
 	unsigned long *bstp = NULL;
 	uint32_t w, h, sz;
 
 	{
-		unsigned long *i; const unsigned long *end = p + n;
+		const unsigned long *end = p + n;
+		unsigned long *i;
 		uint32_t bstd = UINT32_MAX, d, m;
 		for (i = p; i < end - 1; i += sz) {
-			if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return None; }
+			if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 			if ((sz = w * h) > end - i) break;
 			if ((m = w > h ? w : h) >= ICONSIZE && (d = m - ICONSIZE) < bstd) { bstd = d; bstp = i; }
 		}
 		if (!bstp) {
 			for (i = p; i < end - 1; i += sz) {
-				if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return None; }
+				if ((w = *i++) > UINT16_MAX || (h = *i++) > UINT16_MAX) { XFree(p); return NULL; }
 				if ((sz = w * h) > end - i) break;
 				if ((d = ICONSIZE - (w > h ? w : h)) < bstd) { bstd = d; bstp = i; }
 			}
 		}
-		if (!bstp) { XFree(p); return None; }
+		if (!bstp) { XFree(p); return NULL; }
 	}
 
-	if ((w = *(bstp - 2)) == 0 || (h = *(bstp - 1)) == 0) { XFree(p); return None; }
+	if ((w = *(bstp - 2)) == 0 || (h = *(bstp - 1)) == 0) { XFree(p); return NULL; }
 
-	uint32_t icw, ich;
+	uint32_t icw, ich, icsz;
 	if (w <= h) {
 		ich = ICONSIZE; icw = w * ICONSIZE / h;
 		if (icw == 0) icw = 1;
@@ -962,16 +960,31 @@ geticonprop(Window win, unsigned int *picw, unsigned int *pich)
 		icw = ICONSIZE; ich = h * ICONSIZE / w;
 		if (ich == 0) ich = 1;
 	}
-	*picw = icw; *pich = ich;
+	icsz = icw * ich;
 
-	uint32_t i, *bstp32 = (uint32_t *)bstp;
-	for (i = 0, sz = w * h; i < sz; ++i) bstp32[i] = prealpha(bstp[i]);
-
-	static char tmp[ICONSIZE * ICONSIZE << 2];
-	Picture ret = drw_create_resized_picture(drw, (char *)bstp, w, h, icw, ich, tmp);
+	uint32_t i;
+#if ULONG_MAX > UINT32_MAX
+	uint32_t *bstp32 = (uint32_t *)bstp;
+	for (sz = w * h, i = 0; i < sz; ++i) bstp32[i] = bstp[i];
+#endif
+	uint32_t *icbuf = malloc(icsz << 2); if(!icbuf) { XFree(p); return NULL; }
+	if (w == icw && h == ich) memcpy(icbuf, bstp, icsz << 2);
+	else {
+		Imlib_Image origin = imlib_create_image_using_data(w, h, (DATA32 *)bstp);
+		if (!origin) { XFree(p); free(icbuf); return NULL; }
+		imlib_context_set_image(origin);
+		imlib_image_set_has_alpha(1);
+		Imlib_Image scaled = imlib_create_cropped_scaled_image(0, 0, w, h, icw, ich);
+		imlib_free_image_and_decache();
+		if (!scaled) { XFree(p); free(icbuf); return NULL; }
+		imlib_context_set_image(scaled);
+		imlib_image_set_has_alpha(1);
+		memcpy(icbuf, imlib_image_get_data_for_reading_only(), icsz << 2);
+		imlib_free_image_and_decache();
+	}
 	XFree(p);
-
-	return ret;
+	for (i = 0; i < icsz; ++i) icbuf[i] = prealpha(icbuf[i]);
+	return XCreateImage(dpy, DefaultVisual(dpy, screen), DefaultDepth(dpy, screen), ZPixmap, 0, (char *)icbuf, icw, ich, 32, 0);
 }
 
 int
@@ -1105,6 +1118,7 @@ manage(Window w, XWindowAttributes *wa)
 	c->h = c->oldh = wa->height;
 	c->oldbw = wa->border_width;
 
+	c->icon = NULL;
 	updateicon(c);
 	updatetitle(c);
 	if (XGetTransientForHint(dpy, w, &trans) && (t = wintoclient(trans))) {
@@ -1622,8 +1636,7 @@ setup(void)
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
 	root = RootWindow(dpy, screen);
-	xinitvisual();
-	drw = drw_create(dpy, screen, root, sw, sh, visual, depth, cmap);
+	drw = drw_create(dpy, screen, root, sw, sh);
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
 	lrpad = drw->fonts->h;
@@ -1833,8 +1846,8 @@ void
 freeicon(Client *c)
 {
 	if (c->icon) {
-		XRenderFreePicture(dpy, c->icon);
-		c->icon = None;
+		XDestroyImage(c->icon);
+		c->icon = NULL;
 	}
 }
 
@@ -1897,18 +1910,16 @@ updatebars(void)
 	Monitor *m;
 	XSetWindowAttributes wa = {
 		.override_redirect = True,
-		.background_pixel = 0,
-		.border_pixel = 0,
-		.colormap = cmap,
+		.background_pixmap = ParentRelative,
 		.event_mask = ButtonPressMask|ExposureMask
 	};
 	XClassHint ch = {"dwm", "dwm"};
 	for (m = mons; m; m = m->next) {
 		if (m->barwin)
 			continue;
-		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, depth,
-				InputOutput, visual,
-				CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &wa);
+		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, DefaultDepth(dpy, screen),
+				CopyFromParent, DefaultVisual(dpy, screen),
+				CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]->cursor);
 		XMapRaised(dpy, m->barwin);
 		XSetClassHint(dpy, m->barwin, &ch);
@@ -2100,7 +2111,7 @@ void
 updateicon(Client *c)
 {
 	freeicon(c);
-	c->icon = geticonprop(c->win, &c->icw, &c->ich);
+	c->icon = geticonprop(c->win);
 }
 
 void
@@ -2210,36 +2221,6 @@ xerrorstart(Display *dpy, XErrorEvent *ee)
 {
 	die("dwm: another window manager is already running");
 	return -1;
-}
-
-void
-xinitvisual()
-{
-	XVisualInfo *infos;
-	XRenderPictFormat *fmt;
-	int i, n;
-	XVisualInfo tpl = {
-		.screen = screen,
-		.depth = 32,
-		.class = TrueColor
-	};
-	infos = XGetVisualInfo(dpy, VisualScreenMask | VisualDepthMask | VisualClassMask, &tpl, &n);
-	visual = NULL;
-	for (i = 0; i < n; ++i) {
-		fmt = XRenderFindVisualFormat(dpy, infos[i].visual);
-		if (fmt->type == PictTypeDirect && fmt->direct.alphaMask) {
-			visual = infos[i].visual;
-			depth = infos[i].depth;
-			cmap = XCreateColormap(dpy, root, visual, AllocNone);
-			break;
-		}
-	}
-	XFree(infos);
-	if (!visual) {
-		visual = DefaultVisual(dpy, screen);
-		depth = DefaultDepth(dpy, screen);
-		cmap = DefaultColormap(dpy, screen);
-	}
 }
 
 void

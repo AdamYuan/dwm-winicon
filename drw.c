@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <X11/Xlib.h>
 #include <X11/Xft/Xft.h>
-#include <Imlib2.h>
 
 #include "drw.h"
 #include "util.h"
@@ -63,7 +62,7 @@ utf8decode(const char *c, long *u, size_t clen)
 }
 
 Drw *
-drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h, Visual *visual, unsigned int depth, Colormap cmap)
+drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h)
 {
 	Drw *drw = ecalloc(1, sizeof(Drw));
 
@@ -72,14 +71,8 @@ drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h
 	drw->root = root;
 	drw->w = w;
 	drw->h = h;
-	drw->visual = visual;
-	drw->format = XRenderFindVisualFormat(dpy, visual);
-	drw->depth = depth;
-	drw->cmap = cmap;
-	drw->drawable = XCreatePixmap(dpy, root, w, h, depth);
-	XRenderPictureAttributes att;
-	drw->picture = XRenderCreatePicture(dpy, drw->drawable, drw->format, 0, &att);
-	drw->gc = XCreateGC(dpy, drw->drawable, 0, NULL);
+	drw->drawable = XCreatePixmap(dpy, root, w, h, DefaultDepth(dpy, screen));
+	drw->gc = XCreateGC(dpy, root, 0, NULL);
 	XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
 
 	return drw;
@@ -95,7 +88,7 @@ drw_resize(Drw *drw, unsigned int w, unsigned int h)
 	drw->h = h;
 	if (drw->drawable)
 		XFreePixmap(drw->dpy, drw->drawable);
-	drw->drawable = XCreatePixmap(drw->dpy, drw->root, w, h, drw->depth);
+	drw->drawable = XCreatePixmap(drw->dpy, drw->root, w, h, DefaultDepth(drw->dpy, drw->screen));
 }
 
 void
@@ -206,11 +199,10 @@ drw_clr_create(Drw *drw, Clr *dest, const char *clrname)
 	if (!drw || !dest || !clrname)
 		return;
 
-	if (!XftColorAllocName(drw->dpy, drw->visual, drw->cmap,
+	if (!XftColorAllocName(drw->dpy, DefaultVisual(drw->dpy, drw->screen),
+	                       DefaultColormap(drw->dpy, drw->screen),
 	                       clrname, dest))
 		die("error, cannot allocate color '%s'", clrname);
-	
-	dest->pixel |= 0xff000000u; // set as opaque
 }
 
 /* Wrapper to create color schemes. The caller has to call free(3) on the
@@ -242,55 +234,6 @@ drw_setscheme(Drw *drw, Clr *scm)
 {
 	if (drw)
 		drw->scheme = scm;
-}
-
-Picture
-drw_create_resized_picture(Drw *drw, char *src, unsigned int srcw, unsigned int srch, unsigned int dstw, unsigned int dsth, char *tmp) {
-	XImage *xim;
-	Pixmap pm;
-	Picture pic;
-
-	if (srcw <= (dstw << 1u) && srch <= (dsth << 1u)) {
-		pm = XCreatePixmap(drw->dpy, drw->root, srcw, srch, drw->depth);
-		xim = XCreateImage(drw->dpy, drw->visual, drw->depth, ZPixmap, 0, src, srcw, srch, 32, 0);
-		XPutImage(drw->dpy, pm, drw->gc, xim, 0, 0, 0, 0, srcw, srch);
-		xim->data = NULL;
-		XDestroyImage(xim);
-
-		XRenderPictureAttributes att;
-		pic = XRenderCreatePicture(drw->dpy, pm, drw->format, 0, &att);
-		XFreePixmap(drw->dpy, pm);
-
-		XRenderSetPictureFilter(drw->dpy, pic, FilterBilinear, NULL, 0);
-		XTransform xf;
-		xf.matrix[0][0] = (srcw << 16u) / dstw; xf.matrix[0][1] = 0; xf.matrix[0][2] = 0;
-		xf.matrix[1][0] = 0; xf.matrix[1][1] = (srch << 16u) / dsth; xf.matrix[1][2] = 0;
-		xf.matrix[2][0] = 0; xf.matrix[2][1] = 0; xf.matrix[2][2] = 65536;
-		XRenderSetPictureTransform(drw->dpy, pic, &xf);
-	} else {
-		Imlib_Image origin = imlib_create_image_using_data(srcw, srch, (DATA32 *)src);
-		if (!origin) return None;
-		imlib_context_set_image(origin);
-		imlib_image_set_has_alpha(1);
-		Imlib_Image scaled = imlib_create_cropped_scaled_image(0, 0, srcw, srch, dstw, dsth);
-		imlib_free_image_and_decache();
-		if (!scaled) return None;
-		imlib_context_set_image(scaled);
-		memcpy(tmp, imlib_image_get_data_for_reading_only(), (dstw * dsth) << 2);
-		imlib_free_image_and_decache();
-
-		pm = XCreatePixmap(drw->dpy, drw->root, dstw, dsth, drw->depth);
-		xim = XCreateImage(drw->dpy, drw->visual, drw->depth, ZPixmap, 0, (char *)tmp, dstw, dsth, 32, 0);
-		XPutImage(drw->dpy, pm, drw->gc, xim, 0, 0, 0, 0, dstw, dsth);
-		xim->data = NULL;
-		XDestroyImage(xim);
-
-		XRenderPictureAttributes att;
-		pic = XRenderCreatePicture(drw->dpy, pm, drw->format, 0, &att);
-		XFreePixmap(drw->dpy, pm);
-	}
-
-	return pic;
 }
 
 void
@@ -331,7 +274,9 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	} else {
 		XSetForeground(drw->dpy, drw->gc, drw->scheme[invert ? ColFg : ColBg].pixel);
 		XFillRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w, h);
-		d = XftDrawCreate(drw->dpy, drw->drawable, drw->visual, drw->cmap);
+		d = XftDrawCreate(drw->dpy, drw->drawable,
+		                  DefaultVisual(drw->dpy, drw->screen),
+		                  DefaultColormap(drw->dpy, drw->screen));
 		x += lpad;
 		w -= lpad;
 	}
@@ -434,12 +379,24 @@ drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lp
 	return x + (render ? w : 0);
 }
 
+static uint32_t blend(uint32_t p1rb, uint32_t p1g, uint32_t p2) {
+	uint8_t a = p2 >> 24u;
+	uint32_t rb = (p2 & 0xFF00FFu) + ( (a * p1rb) >> 8u );
+	uint32_t g = (p2 & 0x00FF00u) + ( (a * p1g) >> 8u );
+	return (rb & 0xFF00FFu) | (g & 0x00FF00u);
+}
+
 void
-drw_pic(Drw *drw, int x, int y, unsigned int w, unsigned int h, Picture pic)
+drw_img(Drw *drw, int x, int y, XImage *img, uint32_t *tmp) 
 {
-	if (!drw)
+	if (!drw || !drw->scheme)
 		return;
-	XRenderComposite(drw->dpy, PictOpOver, pic, None, drw->picture, 0, 0, 0, 0, x, y, w, h);
+	uint32_t *data = (uint32_t *)img->data, p = drw->scheme[ColBg].pixel, prb = p & 0xFF00FFu, pg = p & 0x00FF00u;
+	int icsz = img->width * img->height, i;
+	for (i = 0; i < icsz; ++i) tmp[i] = blend(prb, pg, data[i]);
+	img->data = (char *) tmp;
+	XPutImage(drw->dpy, drw->drawable, drw->gc, img, 0, 0, x, y, img->width, img->height);
+	img->data = (char *) data;
 }
 
 void
