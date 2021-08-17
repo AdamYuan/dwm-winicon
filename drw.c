@@ -250,10 +250,10 @@ drw_create_resized_picture(Drw *drw, char *src, unsigned int srcw, unsigned int 
 	if (srcw <= (dstw << 1u) && srch <= (dsth << 1u)) {
 		pm = XCreatePixmap(drw->dpy, drw->root, srcw, srch, 32);
 		XImage img = {
-		    srcw, srch, 0, ZPixmap, src,
-		    ImageByteOrder(drw->dpy), BitmapUnit(drw->dpy), BitmapBitOrder(drw->dpy), 32,
-		    32, 0, 32,
-		    0, 0, 0
+			srcw, srch, 0, ZPixmap, src,
+			ImageByteOrder(drw->dpy), BitmapUnit(drw->dpy), BitmapBitOrder(drw->dpy), 32,
+			32, 0, 32,
+			0, 0, 0
 		};
 		XInitImage(&img);
 		gc = XCreateGC(drw->dpy, pm, 0, NULL);
@@ -283,10 +283,10 @@ drw_create_resized_picture(Drw *drw, char *src, unsigned int srcw, unsigned int 
 
 		pm = XCreatePixmap(drw->dpy, drw->root, dstw, dsth, 32);
 		XImage img = {
-		    dstw, dsth, 0, ZPixmap, tmp,
-		    ImageByteOrder(drw->dpy), BitmapUnit(drw->dpy), BitmapBitOrder(drw->dpy), 32,
-		    32, 0, 32,
-		    0, 0, 0
+			dstw, dsth, 0, ZPixmap, tmp,
+			ImageByteOrder(drw->dpy), BitmapUnit(drw->dpy), BitmapBitOrder(drw->dpy), 32,
+			32, 0, 32,
+			0, 0, 0
 		};
 		XInitImage(&img);
 		gc = XCreateGC(drw->dpy, pm, 0, NULL);
