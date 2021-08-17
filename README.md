@@ -33,12 +33,21 @@ Configuration
 
 Alpha Patch
 -----------
-If you also use [alpha patch](https://dwm.suckless.org/patches/alpha/), you need to replace both (in drw.c: drw_create and drw_resize) 
+If you also use [alpha patch](https://dwm.suckless.org/patches/alpha/), some modifications are needed to make dwm work correctly.
+* Replace (in drw.c, drw_create function)
 ```c
-XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen))
+	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen)), 0, NULL);
 ```
 with 
 ```c
-XRenderFindVisualFormat(dpy, drw->visual)
+	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, drw->visual), 0, NULL);
 ```
-in order to make dwm work properly.
+
+* Replace (in drw.c, drw_resize function)
+```c
+	drw->picture = XRenderCreatePicture(drw->dpy, drw->drawable, XRenderFindVisualFormat(drw->dpy, DefaultVisual(drw->dpy, drw->screen)), 0, NULL);
+```
+with 
+```c
+	drw->picture = XRenderCreatePicture(drw->dpy, drw->drawable, XRenderFindVisualFormat(drw->dpy, drw->visual), 0, NULL);
+```
