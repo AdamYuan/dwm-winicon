@@ -278,6 +278,7 @@ drw_create_resized_picture(Drw *drw, char *src, unsigned int srcw, unsigned int 
 		imlib_free_image_and_decache();
 		if (!scaled) return None;
 		imlib_context_set_image(scaled);
+		imlib_image_set_has_alpha(1);
 		memcpy(tmp, imlib_image_get_data_for_reading_only(), (dstw * dsth) << 2);
 		imlib_free_image_and_decache();
 
