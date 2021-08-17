@@ -40,7 +40,7 @@ If you also use [alpha patch](https://dwm.suckless.org/patches/alpha/), some mod
 ```
 with 
 ```c
-	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, drw->visual), 0, NULL);
+	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, visual), 0, NULL);
 ```
 
 * Replace (in drw.c, drw_resize function)
