@@ -35,10 +35,10 @@ Alpha Patch
 -----------
 If you also use [alpha patch](https://dwm.suckless.org/patches/alpha/), you need to replace both (in drw.c: drw_create and drw_resize) 
 ```c
-	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen)), 0, NULL);
+XRenderFindVisualFormat(dpy, DefaultVisual(dpy, screen))
 ```
 with 
 ```c
-	drw->picture = XRenderCreatePicture(dpy, drw->drawable, XRenderFindVisualFormat(dpy, drw->visual), 0, NULL);
+XRenderFindVisualFormat(dpy, drw->visual)
 ```
 in order to make dwm work properly.
